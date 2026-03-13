@@ -1,6 +1,7 @@
-mod system_info;
+use test::list_block_devices;
 
-use std::fs;
+mod system_info;
+mod test;
 
 fn main() {
     let system_info = system_info::SystemInfo::new();
@@ -8,7 +9,13 @@ fn main() {
 
     match system_info.init {
         system_info::InitType::Systemd => println!("Logik: Ich erstelle .mount Dateien."),
-        system_info::InitType::OpenRc => println!("Logik: Ich nutze die /etc/fstab."),
         system_info::InitType::Unknown(init_name) => println!("Logik: Unbekannter Init-Prozess: {}", init_name),
     }
+
+    system_info::list_dev_uuids();
+
+    println!("{:?}", list_block_devices());
+
+
+
 }
