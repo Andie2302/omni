@@ -12,10 +12,16 @@ fn main() {
         system_info::InitType::Unknown(init_name) => println!("Logik: Unbekannter Init-Prozess: {}", init_name),
     }
 
-    system_info::list_dev_uuids();
+    let list = list_block_devices();
 
-    println!("{:?}", list_block_devices());
-
-
+    for device in list {
+        println!("{:?}", device);
+        println!("{:?}", device.mountpoint);
+        println!("{:?}", device.label);
+        println!("{:?}", device.name);
+        println!("{:?}", device.uuid);
+        println!("{:?}", device.path);
+        println!();
+    }
 
 }
