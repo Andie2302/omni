@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path};
 use crate::error::OmniError;
 
 pub fn create_directory<P: AsRef<Path>>(path: P) -> Result<(), OmniError> {
