@@ -8,5 +8,9 @@ pub enum OmniError {
     CreateDirectory(std::io::Error),
     #[error("CreateFile: {0}")]
     CreateFile(std::io::Error),
+    #[error("PathIsFile: {0}")]
+    PathIsFile(std::path::PathBuf),
+    #[error("PathIsDirectory: {0}")]
+    PathIsDirectory(std::path::PathBuf),
 }
 
