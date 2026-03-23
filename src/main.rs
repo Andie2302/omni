@@ -1,27 +1,36 @@
 #![allow(dead_code)]
-mod command_flatpak;
+use std::sync::Arc;
+use crate::omni_command_executor::OutputHandler;
+
 mod omni_command_executor;
 mod omni_command;
-
-use crate::omni_command::{OmniCommand, OmniCommandArg};
-use crate::command_flatpak::FlatpakCommand;
-use crate::omni_command_executor::execute_dry_run;
+mod command_flatpak;
 
 fn main() {
-    let ffmpeg_test = OmniCommand::new("ffmpeg")
-        .with_arg(OmniCommandArg::new("i").with_prefix("-").with_value("Urlaub Video.mp4"))
-        .with_arg(OmniCommandArg::new("c:v").with_prefix("-").with_value("libx264"));
-    let flatpak_test = FlatpakCommand::install("flathub", "org.mozilla.firefox");
-    let separator_test = OmniCommand::new("mytool")
-        .with_arg(OmniCommandArg::new("output")
-            .with_prefix("--")
-            .with_separator("=")
-            .with_value("result.json"));
-    let ls_test = OmniCommand::new("ls")
-        .with_arg(OmniCommandArg::new("l").with_prefix("-"))
-        .with_arg(OmniCommandArg::new("all").with_prefix("--"));
-    execute_dry_run(&ffmpeg_test);
-    execute_dry_run(&flatpak_test);
-    execute_dry_run(&separator_test);
-    execute_dry_run(&ls_test);
+    // 1. Setup: Wir wollen die Ausgabe sammeln statt sie nur zu drucken
+    let handler = Arc::new(omni_command_executor::CollectingHandler::new());
+
+    // 2. Konfiguration: Live-Modus, aber Ausgabe "einfangen"
+    let config = omni_command_executor::ExecutorConfig::new()
+        .dry_run(false)
+        .capture_output(true);
+
+    let executor = omni_command_executor::OmniExecutor::new(config, Arc::clone(&handler) as Arc<dyn OutputHandler>);
+
+    // 3. Einen Befehl erstellen (z.B. Flatpak Liste)
+    let cmd = crate::omni_command::OmniCommand::new("flatpak")
+        .with_arg(crate::omni_command::OmniCommandArg::new("list"));
+
+    // 4. Ausführen
+    let result = executor.execute(&cmd);
+
+    if result.is_success() {
+        // Jetzt können wir die gesammelten Daten verarbeiten!
+        let output = handler.stdout();
+        if output.contains("firefox") {
+            println!("Firefox ist bereits installiert.");
+        }
+    } else {
+        println!("Fehler: {}", result.status_message());
+    }
 }
