@@ -14,7 +14,7 @@
 //! let results: Vec<CommandProbe> = tools.into_iter().map(CommandProbe::check).collect();
 //! print_probe_report(&results);
 //! ```
-#![allow(dead_code)]
+
 use std::path::PathBuf;
 use which::which;
 

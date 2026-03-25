@@ -1,5 +1,4 @@
 //! Shared types — used by both `probe` (UseCase 1) and `scan` (UseCase 2).
-#![allow(dead_code)]
 use std::fmt;
 use std::fs;
 use std::io::{BufRead, BufReader};

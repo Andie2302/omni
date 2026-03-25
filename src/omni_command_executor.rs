@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+
 use std::io::{BufRead, BufReader};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
