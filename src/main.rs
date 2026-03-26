@@ -140,7 +140,7 @@ fn main() {
     // --- SCHRITT 2: Ein ganzes Verzeichnis scannen (/usr/bin) ---
     println!("--- Test 2: Scanne /usr/bin (limitierte Tiefe) ---");
 
-    let scan_path = "/usr/bin";
+    let scan_path = "/usr/bin/";
 
     // Wir nutzen deinen DirScanner.
     // max_depth(1) verhindert, dass wir ewig in Unterverzeichnisse abtauchen.
