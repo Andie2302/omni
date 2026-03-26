@@ -1,277 +1,10 @@
 
-mod tools;
+/*
 
-use which::which;
-use std::path::PathBuf;
-use std::fmt;
-use std::fs;
-use std::io::{BufRead, BufReader};
 
-// -------------------------------------------------------
-// Kern-Datentypen
-// -------------------------------------------------------
-
-/// Wie ein Tool im Dateisystem vorliegt
-#[derive(Debug)]
-pub enum LinkKind {
-    /// Direkte Binärdatei, kein Symlink
-    Direct,
-    /// Einfacher Symlink (ein Hop)
-    Symlink { target: PathBuf },
-    /// Mehrfach verkettete Symlinks (z.B. java -> alternatives -> jvm/bin/java)
-    SymlinkChain { chain: Vec<PathBuf> },
-    /// Shell-Wrapper-Skript (shebang erkennbar)
-    ShellWrapper { interpreter: String },
-}
-
-impl LinkKind {
-    /// Analysiert einen gefundenen Pfad vollständig
-    pub fn detect(path: &PathBuf) -> Self {
-        let chain = Self::resolve_chain(path);
-
-        match chain.len() {
-            // Kein Symlink
-            0 => {
-                // Trotzdem prüfen ob Shell-Wrapper
-                Self::detect_shell_wrapper(path)
-                    .unwrap_or(LinkKind::Direct)
-            }
-            // Genau ein Hop
-            1 => LinkKind::Symlink { target: chain.into_iter().next().unwrap() },
-            // Mehrere Hops
-            _ => {
-                // Letztes Ziel auf Shell-Wrapper prüfen
-                let final_target = chain.last().unwrap().clone();
-                if let Some(LinkKind::ShellWrapper { interpreter }) =
-                    Self::detect_shell_wrapper(&final_target)
-                {
-                    return LinkKind::ShellWrapper { interpreter };
-                }
-                LinkKind::SymlinkChain { chain }
-            }
-        }
-    }
-
-    /// Verfolgt die komplette Symlink-Kette (ohne den Startpfad selbst)
-    fn resolve_chain(path: &PathBuf) -> Vec<PathBuf> {
-        let mut chain = Vec::new();
-        let mut current = path.clone();
-        let max_hops = 10; // Schutz vor zirkulären Links
-
-        for _ in 0..max_hops {
-            match fs::read_link(&current) {
-                Ok(target) => {
-                    // Relative Symlinks auflösen
-                    let resolved = if target.is_absolute() {
-                        target
-                    } else {
-                        current.parent()
-                            .unwrap_or(std::path::Path::new("/"))
-                            .join(&target)
-                    };
-                    chain.push(resolved.clone());
-                    current = resolved;
-                }
-                Err(_) => break, // Kein weiterer Symlink → Ende der Kette
-            }
-        }
-        chain
-    }
-
-    /// Liest die erste Zeile einer Datei und erkennt Shebangs
-    fn detect_shell_wrapper(path: &PathBuf) -> Option<LinkKind> {
-        let file = fs::File::open(path).ok()?;
-        let mut reader = BufReader::new(file);
-        let mut first_line = String::new();
-        reader.read_line(&mut first_line).ok()?;
-
-        if first_line.starts_with("#!") {
-            // "#/usr/bin/env python3" → "python3"
-            // "#!/bin/bash"          → "bash"
-            let interpreter = first_line
-                .trim_start_matches("#!")
-                .split_whitespace()
-                .last() // letztes Token = tatsächlicher Interpreter bei `env`
-                .unwrap_or("unknown")
-                .to_string();
-            Some(LinkKind::ShellWrapper { interpreter })
-        } else {
-            None
-        }
-    }
-
-    /// Kompakte einzeilige Darstellung für die Tabelle
-    pub fn display_short(&self) -> String {
-        match self {
-            LinkKind::Direct => String::new(),
-            LinkKind::Symlink { target } =>
-                format!("→ {}", target.display()),
-            LinkKind::SymlinkChain { chain } =>
-                format!("→→ {} ({})", chain.last().unwrap().display(), chain.len()),
-            LinkKind::ShellWrapper { interpreter } =>
-                format!("[wrapper: {}]", interpreter),
-        }
-    }
-
-    /// Icon für die Status-Spalte
-    pub fn icon(&self) -> &'static str {
-        match self {
-            LinkKind::Direct => "✔",
-            LinkKind::Symlink { .. } => "⤷",
-            LinkKind::SymlinkChain { .. } => "⤷⤷",
-            LinkKind::ShellWrapper { .. } => "📜",
-        }
-    }
-}
-
-/// Ob ein Tool gefunden wurde – mit strukturiertem Pfad oder Fehlergrund
-#[derive(Debug)]
-pub enum AuditStatus {
-    Found {
-        path: PathBuf,
-        link: LinkKind,
-    },
-    Missing,
-    // Erweiterbar: z.B. Forbidden(String), WrongVersion(String)
-}
-
-impl AuditStatus {
-    pub fn is_found(&self) -> bool {
-        matches!(self, AuditStatus::Found { .. })
-    }
-
-    pub fn path(&self) -> Option<&PathBuf> {
-        match self {
-            AuditStatus::Found { path, .. } => Some(path),
-            AuditStatus::Missing => None,
-        }
-    }
-}
-
-impl fmt::Display for AuditStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AuditStatus::Found { path, link } => {
-                let link_str = link.display_short();
-                if link_str.is_empty() {
-                    write!(f, "✔ Vorhanden  {}", path.display())
-                } else {
-                    write!(f, "{} {}  {}", link.icon(), path.display(), link_str)
-                }
-            }
-            AuditStatus::Missing => write!(f, "✘ Fehlt      ---"),
-        }
-    }
-}
-
-// -------------------------------------------------------
-
-/// Metadaten zu einem Tool (statisch, zur Kompilierzeit bekannt)
-#[derive(Debug, Clone)]
-pub struct ToolMeta {
-    pub name: &'static str,
-    pub category: &'static str,
-    pub description: &'static str,
-}
-
-// -------------------------------------------------------
-
-/// Das Ergebnis einer einzelnen Werkzeug-Prüfung (Laufzeit)
-#[derive(Debug)]
-pub struct CommandAudit {
-    pub meta: ToolMeta,
-    pub status: AuditStatus,
-}
-
-impl CommandAudit {
-    /// Prüft, ob das Tool im PATH vorhanden ist
-    pub fn check(meta: ToolMeta) -> Self {
-        let status = match which(meta.name) {
-            Ok(path) => {
-                let link = LinkKind::detect(&path);
-                AuditStatus::Found { path, link }
-            }
-            Err(_) => AuditStatus::Missing,
-        };
-        Self { meta, status }
-    }
-
-    /// Kurzform für ad-hoc Prüfungen ohne vollständige Metadaten
-    pub fn check_simple(name: &'static str) -> Self {
-        Self::check(ToolMeta {
-            name,
-            category: "Unbekannt",
-            description: "—",
-        })
-    }
-
-    pub fn is_available(&self) -> bool {
-        self.status.is_found()
-    }
-
-    pub fn path(&self) -> Option<&PathBuf> {
-        self.status.path()
-    }
-}
-
-// -------------------------------------------------------
-// Ausgabe-Formatierung
-// -------------------------------------------------------
-
-/// Gibt eine Liste von Audits gruppiert nach Kategorie aus
-pub fn print_audit_report(audits: &[CommandAudit]) {
-    // Kategorien in Reihenfolge des ersten Auftretens sammeln
-    let mut categories: Vec<&str> = Vec::new();
-    for a in audits {
-        if !categories.contains(&a.meta.category) {
-            categories.push(a.meta.category);
-        }
-    }
-
-    let col_name = 16usize;
-    let col_path = 42usize;
-    let col_desc = 30usize;
-    let total = col_name + col_path + col_desc + 6;
-
-    for cat in categories {
-        println!("\n  [{cat}]");
-        println!("{:=<total$}", "");
-        println!("{:<col_name$}  {:<col_path$}  {:<col_desc$}", "Tool", "Status / Pfad", "Beschreibung");
-        println!("{:-<total$}", "");
-
-        for audit in audits.iter().filter(|a| a.meta.category == cat) {
-            let (status_icon, path_str) = match &audit.status {
-                AuditStatus::Found { path, link } => {
-                    let link_display = link.display_short();
-                    let full_path = if link_display.is_empty() {
-                        path.display().to_string()
-                    } else {
-                        format!("{} {}", path.display(), link_display)
-                    };
-                    (link.icon(), full_path)
-                }
-                AuditStatus::Missing => ("✘", "---".to_string()),
-            };
-
-            println!(
-                "{:<col_name$}  {} {:<col_path$}  {:<col_desc$}",
-                audit.meta.name,
-                status_icon,
-                path_str,
-                audit.meta.description,
-            );
-        }
-    }
-    println!();
-}
-
-// -------------------------------------------------------
-// Tool-Registry (erweiterbar, kein Duplikat-Problem)
-// -------------------------------------------------------
-
-pub fn default_package_managers() -> Vec<ToolMeta> {
+pub fn default_package_managers<ToolMeta>() -> Vec<ToolMeta> {
     vec![
-        // === System Package Manager ===
+
         ToolMeta { name: "dnf", category: "System", description: "Fedora/RHEL modern" },
         ToolMeta { name: "dnf5", category: "System", description: "Fedora/RHEL next-gen" },
         ToolMeta { name: "yum", category: "System", description: "RHEL/CentOS legacy" },
@@ -307,7 +40,6 @@ pub fn default_package_managers() -> Vec<ToolMeta> {
         ToolMeta { name: "microdnf", category: "System", description: "Minimal C-based DNF" },
         ToolMeta { name: "pkcon", category: "System", description: "PackageKit (GUI Backend)" },
 
-        // === Universal / Container Apps ===
         ToolMeta { name: "flatpak", category: "Universal", description: "Flatpak apps" },
         ToolMeta { name: "snap", category: "Universal", description: "Snap apps" },
         ToolMeta { name: "brew", category: "Universal", description: "Homebrew" },
@@ -318,7 +50,6 @@ pub fn default_package_managers() -> Vec<ToolMeta> {
         ToolMeta { name: "appstreamcli", category: "Universal", description: "AppStream metadata" },
         ToolMeta { name: "flatpak-spawn", category: "Universal", description: "Escape Flatpak sandbox" },
 
-        // === Sprach-Ökosysteme ===
         ToolMeta { name: "cargo", category: "Language", description: "Rust" },
         ToolMeta { name: "rustup", category: "Language", description: "Rust toolchain mgr" },
         ToolMeta { name: "go", category: "Language", description: "Go" },
@@ -359,7 +90,6 @@ pub fn default_package_managers() -> Vec<ToolMeta> {
         ToolMeta { name: "nimble", category: "Language", description: "Nim" },
         ToolMeta { name: "zig", category: "Language", description: "Zig build system" },
 
-        // === Task Runner / Build ===
         ToolMeta { name: "just", category: "Build", description: "Just task runner" },
         ToolMeta { name: "ujust", category: "Build", description: "uBlue just wrapper" },
         ToolMeta { name: "make", category: "Build", description: "GNU Make" },
@@ -371,27 +101,61 @@ pub fn default_package_managers() -> Vec<ToolMeta> {
     ]
 }
 
-// -------------------------------------------------------
-// Einstiegspunkt
-// -------------------------------------------------------
+*/
+use omni::fscan::probe::CommandProbe;
+use omni::fscan::scan::DirScanner;
+
+#[derive(Debug, Clone)]
+pub struct ToolMeta {
+    pub name: &'static str,
+    pub category: &'static str,
+    pub description: &'static str,
+}
+
+impl ToolMeta {
+    pub fn new(name: &'static str, category: &'static str, description: &'static str) -> Self {
+        Self { name, category, description }
+    }
+}
+
+
 
 fn main() {
-    // 1. Registry holen
-    let tools = default_package_managers();
+    // --- SCHRITT 1: Einzelnes Tool prüfen (Flatpak) ---
+    println!("--- Test 1: Spezifisches Tool suchen ---");
 
-    // 2. Alle prüfen (dedupliziert durch Registry-Design)
-    let audits: Vec<CommandAudit> = tools
-        .into_iter()
-        .map(CommandAudit::check)
-        .collect();
+    let flatpak_meta = omni::fscan::probe::ToolMeta::new("flatpak", "Universal", "Container Apps");
+    let flatpak_probe = CommandProbe::check(flatpak_meta);
 
-    // 3. Bericht ausgeben
-    print_audit_report(&audits);
+    if flatpak_probe.is_available() {
+        println!("✅ Flatpak wurde gefunden!");
+        if let Some(path) = flatpak_probe.path() {
+            println!("   Pfad: {}", path.display());
+        }
+    } else {
+        println!("❌ Flatpak ist nicht installiert.");
+    }
+    println!();
 
-    // 4. Weiterverarbeitung bleibt einfach:
-    let available: Vec<&CommandAudit> = audits.iter()
-        .filter(|a| a.is_available())
-        .collect();
+    // --- SCHRITT 2: Ein ganzes Verzeichnis scannen (/usr/bin) ---
+    println!("--- Test 2: Scanne /usr/bin (limitierte Tiefe) ---");
 
-    println!("Zusammenfassung: {}/{} Tools gefunden.", available.len(), audits.len());
+    let scan_path = "/usr/bin";
+
+    // Wir nutzen deinen DirScanner.
+    // max_depth(1) verhindert, dass wir ewig in Unterverzeichnisse abtauchen.
+    match DirScanner::new(scan_path).max_depth(1).scan() {
+        Ok(result) => {
+            let exec_count = result.executables().count();
+            println!("Scan von {} abgeschlossen.", scan_path);
+            println!("Gefunden: {} ausführbare Dateien.", exec_count);
+
+            // Wir geben nur die ersten 10 aus, damit das Terminal nicht explodiert
+            println!("\nTop 10 Funde:");
+            for entry in result.executables() {
+                println!("  - {} [{}]", entry.path.display(), entry.kind);
+            }
+        }
+        Err(e) => eprintln!("Fehler beim Scannen: {}", e),
+    }
 }
