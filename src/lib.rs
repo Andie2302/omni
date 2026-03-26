@@ -25,7 +25,7 @@
 //! }
 //! ```
 
-mod fscan;
-mod tools;
-mod omni_command_executor;
-mod omni_command;
+pub mod fscan;
+pub mod tools;
+pub mod omni_command_executor;
+pub mod omni_command;
