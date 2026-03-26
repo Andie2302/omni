@@ -324,55 +324,38 @@ fn read_privileges(_path: &Path) -> Privileges {
     Privileges::default()
 }
 
-/// Magic-Number-Matching — spezifischste Muster zuerst.
+/// Magic-Number-Matching — delegiert an magic::detect() für alle Formate.
 fn match_magic(h: &[u8]) -> ExecutableKind {
+    use crate::fscan::magic::{detect, Magic};
 
-    // Shebang muss vor allen Binary-Checks kommen
-    if h.starts_with(b"#!") {
-        return parse_shebang(h);
-    }
-
-    // ELF: 7F 45 4C 46
-    if h.starts_with(b"\x7FELF") {
-        return parse_elf(h);
-    }
-
-    // Mach-O: alle 5 Varianten
-    let macho_bits = match h.get(..4) {
-        Some(b"\xCE\xFA\xED\xFE") => Some(Bits::B32),     // 32-bit LE
-        Some(b"\xCF\xFA\xED\xFE") => Some(Bits::B64),     // 64-bit LE
-        Some(b"\xFE\xED\xFA\xCE") => Some(Bits::B32),     // 32-bit BE
-        Some(b"\xFE\xED\xFA\xCF") => Some(Bits::B64),     // 64-bit BE
-        Some(b"\xCA\xFE\xBA\xBE") => Some(Bits::Unknown), // Fat/Universal
-        _ => None,
-    };
-    if let Some(bits) = macho_bits {
-        return ExecutableKind::NativeBinary {
-            format: BinaryFormat::MachO { bits },
+    match detect(h) {
+        Some(Magic::Shebang) => parse_shebang(h),
+        Some(Magic::Elf)     => parse_elf(h),
+        Some(Magic::MachO32Le) | Some(Magic::MachO32Be) => ExecutableKind::NativeBinary {
+            format: BinaryFormat::MachO { bits: Bits::B32 },
             privileges: Privileges::default(),
-        };
-    }
-
-    // PE / Windows: MZ (4D 5A)
-    if h.starts_with(b"MZ") {
-        return ExecutableKind::NativeBinary {
+        },
+        Some(Magic::MachO64Le) | Some(Magic::MachO64Be) => ExecutableKind::NativeBinary {
+            format: BinaryFormat::MachO { bits: Bits::B64 },
+            privileges: Privileges::default(),
+        },
+        Some(Magic::MachoFat) => ExecutableKind::NativeBinary {
+            format: BinaryFormat::MachO { bits: Bits::Unknown },
+            privileges: Privileges::default(),
+        },
+        Some(Magic::Pe) => ExecutableKind::NativeBinary {
             format: BinaryFormat::Pe,
             privileges: Privileges::default(),
-        };
-    }
-
-    // WebAssembly: \0asm (00 61 73 6D)
-    if h.starts_with(b"\x00asm") {
-        return ExecutableKind::NativeBinary {
+        },
+        Some(Magic::Wasm) => ExecutableKind::NativeBinary {
             format: BinaryFormat::Wasm,
             privileges: Privileges::default(),
-        };
-    }
-
-    // x-Bit gesetzt, aber kein bekanntes Magic
-    ExecutableKind::NativeBinary {
-        format: BinaryFormat::Unknown,
-        privileges: Privileges::default(),
+        },
+        // x-Bit gesetzt, aber kein bekanntes Executable-Magic
+        _ => ExecutableKind::NativeBinary {
+            format: BinaryFormat::Unknown,
+            privileges: Privileges::default(),
+        },
     }
 }
 
