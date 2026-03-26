@@ -6,4 +6,3 @@ edition = "2024"
 [dependencies]
 which = "8.0.2"
 walkdir = "2.5.0"
-fscan = "0.2.0"
