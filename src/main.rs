@@ -102,6 +102,7 @@ pub fn default_package_managers<ToolMeta>() -> Vec<ToolMeta> {
 }
 
 */
+use omni_tools::hello_world::hello_world;
 use omni::fscan::probe::CommandProbe;
 use omni::fscan::scan::DirScanner;
 
@@ -122,7 +123,8 @@ impl ToolMeta {
 
 fn main() {
 
-    HelloWorld::sag_hallo();
+
+    hello_world::sag_hallo();
     
     // --- SCHRITT 1: Einzelnes Tool prüfen (Flatpak) ---
     println!("--- Test 1: Spezifisches Tool suchen ---");
