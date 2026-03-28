@@ -26,5 +26,4 @@
 //! ```
 
 pub mod fscan;
-pub mod omni_command_executor;
 
