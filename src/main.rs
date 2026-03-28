@@ -102,65 +102,34 @@ pub fn default_package_managers<ToolMeta>() -> Vec<ToolMeta> {
 }
 
 */
+use std::sync::Arc;
 use omni_tools::hello_world::hello_world;
-use omni::fscan::probe::CommandProbe;
-use omni::fscan::scan::DirScanner;
-
-#[derive(Debug, Clone)]
-pub struct ToolMeta {
-    pub name: &'static str,
-    pub category: &'static str,
-    pub description: &'static str,
-}
-
-impl ToolMeta {
-    pub fn new(name: &'static str, category: &'static str, description: &'static str) -> Self {
-        Self { name, category, description }
-    }
-}
-
-
+use omni_tools::{ExecutorConfig, OmniCommand, OmniCommandArg, OmniExecutor};
+use omni_tools::command::executor::PrintHandler;
 
 fn main() {
+    // --- SCHRITT 1: Das Kommando zusammenbauen ---
+    // Wir erstellen 'flatpak list --app'
+    let cmd = OmniCommand::new("flatpak")
+        .with_arg(OmniCommandArg::new("list"))
+        .with_arg(OmniCommandArg::new("--app"));
 
+    println!("Starte Befehl: {}", cmd);
 
-    hello_world::sag_hallo();
-    
-    // --- SCHRITT 1: Einzelnes Tool prüfen (Flatpak) ---
-    println!("--- Test 1: Spezifisches Tool suchen ---");
+    // --- SCHRITT 2: Den Executor vorbereiten ---
+    // Der PrintHandler gibt alles sofort im Terminal aus.
+    let handler = Arc::new(PrintHandler);
+    let config = ExecutorConfig::default(); // Standard: Live-Ausgabe, kein Dry-Run
 
-    let flatpak_meta = omni::fscan::probe::ToolMeta::new("flatpak", "Universal", "Container Apps");
-    let flatpak_probe = CommandProbe::check(flatpak_meta);
+    let executor = OmniExecutor::new(config, handler);
 
-    if flatpak_probe.is_available() {
-        println!("✅ Flatpak wurde gefunden!");
-        if let Some(path) = flatpak_probe.path() {
-            println!("   Pfad: {}", path.display());
-        }
+    // --- SCHRITT 3: Ausführen ---
+    let result = executor.execute(&cmd);
+
+    // Ergebnis prüfen
+    if result.is_success() {
+        println!("\n✅ Befehl erfolgreich ausgeführt.");
     } else {
-        println!("❌ Flatpak ist nicht installiert.");
-    }
-    println!();
-
-    // --- SCHRITT 2: Ein ganzes Verzeichnis scannen (/usr/bin) ---
-    println!("--- Test 2: Scanne /usr/bin (limitierte Tiefe) ---");
-
-    let scan_path = "/home/andreas/Schreibtisch/Neuer Ordner/";
-
-    // Wir nutzen deinen DirScanner.
-    // max_depth(1) verhindert, dass wir ewig in Unterverzeichnisse abtauchen.
-    match DirScanner::new(scan_path).max_depth(1).scan() {
-        Ok(result) => {
-            let exec_count = result.executables().count();
-            println!("Scan von {} abgeschlossen.", scan_path);
-            println!("Gefunden: {} ausführbare Dateien.", exec_count);
-
-            // Wir geben nur die ersten 10 aus, damit das Terminal nicht explodiert
-            println!("\nTop 10 Funde:");
-            for entry in result.executables() {
-                println!("  - {} [{}]", entry.path.display(), entry.kind);
-            }
-        }
-        Err(e) => eprintln!("Fehler beim Scannen: {}", e),
+        println!("\n❌ Fehler: {}", result.status_message());
     }
 }
