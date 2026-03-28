@@ -121,6 +121,9 @@ impl ToolMeta {
 
 
 fn main() {
+
+    HelloWorld::sag_hallo();
+    
     // --- SCHRITT 1: Einzelnes Tool prüfen (Flatpak) ---
     println!("--- Test 1: Spezifisches Tool suchen ---");
 
