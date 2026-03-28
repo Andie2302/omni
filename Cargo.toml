@@ -6,5 +6,4 @@ edition = "2024"
 [dependencies]
 which = "8.0.2"
 walkdir = "2.5.0"
-HelloWorld = { git = "https://github.com/Andie2302/omni-tools" }
-command = { git = "https://github.com/Andie2302/omni-tools" }
+omni_tools = { git = "https://github.com/Andie2302/omni-tools"}
