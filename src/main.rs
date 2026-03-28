@@ -102,10 +102,9 @@ pub fn default_package_managers<ToolMeta>() -> Vec<ToolMeta> {
 }
 
 */
-use std::sync::Arc;
-use omni_tools::hello_world::hello_world;
-use omni_tools::{ExecutorConfig, OmniCommand, OmniCommandArg, OmniExecutor};
 use omni_tools::command::executor::PrintHandler;
+use omni_tools::{ExecutorConfig, OmniCommand, OmniCommandArg, OmniExecutor};
+use std::sync::Arc;
 
 fn main() {
     // --- SCHRITT 1: Das Kommando zusammenbauen ---
