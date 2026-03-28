@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "HelloWorld"
+version = "0.1.0"
+source = "git+https://github.com/Andie2302/omni-tools#1ac1d3dfd899ef5afa92e1f7ba14ade2798bc175"
+
+[[package]]
+name = "command"
+version = "0.1.0"
+source = "git+https://github.com/Andie2302/omni-tools#1ac1d3dfd899ef5afa92e1f7ba14ade2798bc175"
+
+[[package]]
 name = "libc"
 version = "0.2.183"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12,6 +22,8 @@ checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
 name = "omni"
 version = "0.1.0"
 dependencies = [
+ "HelloWorld",
+ "command",
  "walkdir",
  "which",
 ]
