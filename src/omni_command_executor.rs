@@ -3,7 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
 
-use crate::omni_command::OmniCommand;
+use command::{OmniCommand};
 
 // ─────────────────────────────────────────────
 //  Output-Event  (was der Executor nach außen liefert)
@@ -255,10 +255,10 @@ impl OmniExecutor {
             return ExecuteResult::Simulated;
         }
 
-        let mut process = Command::new(&cmd.name);
+        let mut process = Command::new(&cmd.name());
 
         // Argumente
-        for arg in &cmd.args {
+        for arg in cmd.args() {
             process.args(arg.to_os_args());
         }
 
@@ -384,7 +384,7 @@ impl OmniExecutor {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use crate::omni_command::{OmniCommand, OmniCommandArg};
+    use command::{OmniCommand, OmniCommandArg};
 
     fn collecting_executor(dry_run: bool) -> (OmniExecutor, Arc<CollectingHandler>) {
         let handler = Arc::new(CollectingHandler::new());
