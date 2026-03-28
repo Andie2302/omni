@@ -1,17 +1,3 @@
-// magic.rs
-//
-// Einzige Quelle für Magic-Number-Erkennung im gesamten Crate.
-// Sowohl `core` (Executable-Klassifizierung) als auch allgemeine
-// Dateiformat-Erkennung laufen über denselben Trie.
-//
-// Neue Formate hinzufügen: einfach eine Zeile in SIGNATURES ergänzen.
-// Formate mit Byte-Offsets (WebP, MP4) kommen in `match_offset_magic`.
-
-// -------------------------------------------------------
-// Magic — alle erkennbaren Formate an einem Ort
-// -------------------------------------------------------
-
-/// Alle erkennbaren Dateiformate — Executables, Medien, Archive, Dokumente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Magic {
     // --- Executables (werden von core.rs genutzt) ---
@@ -54,10 +40,6 @@ pub enum Magic {
     Mkv,         // EBML-Header
 }
 
-// -------------------------------------------------------
-// Trie — Prefix-basiertes Matching ab Byte 0
-// -------------------------------------------------------
-
 #[derive(Default)]
 struct TrieNode {
     children: std::collections::HashMap<u8, TrieNode>,
@@ -84,10 +66,6 @@ impl TrieNode {
         self.children.get(&first)?.search(rest)
     }
 }
-
-// -------------------------------------------------------
-// Signaturen — hier neue Formate eintragen
-// -------------------------------------------------------
 
 static SIGNATURES: &[(&[u8], Magic)] = &[
     // Executables
@@ -137,12 +115,6 @@ fn trie() -> &'static TrieNode {
     })
 }
 
-// -------------------------------------------------------
-// Öffentliche API
-// -------------------------------------------------------
-
-/// Erkennt das Dateiformat anhand der ersten Bytes.
-/// Gibt `None` zurück wenn das Format unbekannt ist.
 pub fn detect(data: &[u8]) -> Option<Magic> {
     if let Some(m) = trie().search(data) {
         return Some(m);
@@ -150,7 +122,6 @@ pub fn detect(data: &[u8]) -> Option<Magic> {
     match_offset_magic(data)
 }
 
-/// Formate deren Signatur nicht bei Byte 0 beginnt oder eine Lücke hat.
 fn match_offset_magic(data: &[u8]) -> Option<Magic> {
     if data.len() >= 12
         && data.starts_with(b"RIFF")
@@ -164,7 +135,6 @@ fn match_offset_magic(data: &[u8]) -> Option<Magic> {
     None
 }
 
-/// Convenience: liest bis zu 16 Bytes aus einer Datei und ruft `detect` auf.
 pub fn detect_file(path: &std::path::Path) -> std::io::Result<Option<Magic>> {
     use std::io::Read;
     let mut f = std::fs::File::open(path)?;
@@ -173,14 +143,9 @@ pub fn detect_file(path: &std::path::Path) -> std::io::Result<Option<Magic>> {
     Ok(detect(&buf[..n]))
 }
 
-// -------------------------------------------------------
-// Tests
-// -------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn png() {
         assert_eq!(detect(b"\x89PNG\r\n\x1a\nrest"), Some(Magic::Png));
