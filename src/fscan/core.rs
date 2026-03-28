@@ -132,7 +132,7 @@ impl fmt::Display for ExecutableKind {
     }
 }
 
-impl ExecutableKind {
+impl ExecutableKind { 
     pub fn is_elf(&self) -> bool {
         matches!(self, ExecutableKind::NativeBinary { format: BinaryFormat::Elf { .. }, .. })
     }
