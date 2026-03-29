@@ -5,12 +5,12 @@ version = 4
 [[package]]
 name = "command"
 version = "0.1.0"
-source = "git+https://github.com/Andie2302/omni-tools#b48546ed0f7afc05788a664fa650b09e7ae530ca"
+source = "git+https://github.com/Andie2302/omni-tools#b90c79e4475e4d18466dfb1dd1833e80560753f1"
 
 [[package]]
 name = "hello_world"
 version = "0.1.0"
-source = "git+https://github.com/Andie2302/omni-tools#b48546ed0f7afc05788a664fa650b09e7ae530ca"
+source = "git+https://github.com/Andie2302/omni-tools#b90c79e4475e4d18466dfb1dd1833e80560753f1"
 
 [[package]]
 name = "libc"
@@ -22,15 +22,15 @@ checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
 name = "omni"
 version = "0.1.0"
 dependencies = [
- "omni_tools",
+ "omni-tools",
  "walkdir",
  "which",
 ]
 
 [[package]]
-name = "omni_tools"
+name = "omni-tools"
 version = "0.1.0"
-source = "git+https://github.com/Andie2302/omni-tools#b48546ed0f7afc05788a664fa650b09e7ae530ca"
+source = "git+https://github.com/Andie2302/omni-tools#b90c79e4475e4d18466dfb1dd1833e80560753f1"
 dependencies = [
  "command",
  "hello_world",
