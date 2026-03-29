@@ -102,33 +102,45 @@ pub fn default_package_managers<ToolMeta>() -> Vec<ToolMeta> {
 }
 
 */
-use omni_tools::command::executor::PrintHandler;
-use omni_tools::{ExecutorConfig, OmniCommand, OmniCommandArg, OmniExecutor};
+
 use std::sync::Arc;
+use omni_tools::command::executor::CollectingHandler;
+use omni_tools::{ExecutorConfig, OmniExecutor,OmniCommand, OmniCommandArg}; //CollectingHandler
 
 fn main() {
-    // --- SCHRITT 1: Das Kommando zusammenbauen ---
-    // Wir erstellen 'flatpak list --app'
     let cmd = OmniCommand::new("flatpak")
-        .with_arg(OmniCommandArg::new("list"))
-        .with_arg(OmniCommandArg::new("--app"));
+        .with_arg(OmniCommandArg::new("list"));
 
-    println!("Starte Befehl: {}", cmd);
+    // ── Stufe 1: Maximum Convenience ─────────────────────────────
+    // Ein Einzeiler, PrintHandler, läuft einfach durch.
+    OmniExecutor::run(&cmd);
 
-    // --- SCHRITT 2: Den Executor vorbereiten ---
-    // Der PrintHandler gibt alles sofort im Terminal aus.
-    let handler = Arc::new(PrintHandler);
-    let config = ExecutorConfig::default(); // Standard: Live-Ausgabe, kein Dry-Run
-
-    let executor = OmniExecutor::new(config, handler);
-
-    // --- SCHRITT 3: Ausführen ---
-    let result = executor.execute(&cmd);
-
-    // Ergebnis prüfen
-    if result.is_success() {
-        println!("\n✅ Befehl erfolgreich ausgeführt.");
-    } else {
-        println!("\n❌ Fehler: {}", result.status_message());
+    // ── Stufe 2: Ergebnis auswerten ───────────────────────────────
+    let result = OmniExecutor::run(&cmd);
+    if !result.is_success() {
+        eprintln!("Fehler: {}", result.status_message());
     }
+
+    // ── Stufe 3: Ausgabe einsammeln ───────────────────────────────
+    let handler = Arc::new(CollectingHandler::new());
+    OmniExecutor::with_handler(Arc::clone(&handler) as Arc<_>).execute(&cmd);
+
+    for line in handler.stdout_lines.lock().unwrap().iter() {
+        println!("App: {}", line);
+    }
+
+    // ── Stufe 4: Volle Kontrolle ──────────────────────────────────
+    let handler = Arc::new(CollectingHandler::new());
+    let executor = OmniExecutor::new(
+        ExecutorConfig::new()
+            .capture_output(true)
+            .env_var("LANG", "en_US.UTF-8")
+            .working_dir("/tmp").unwrap(),  // <- gibt Err wenn Pfad nicht existiert
+        Arc::clone(&handler) as Arc<_>,
+    );
+
+    let result = executor.execute(&cmd);
+    println!("Exit: {}", result.status_message());
+    println!("stdout: {}", handler.stdout());
+    println!("stderr: {}", handler.stderr());
 }
